@@ -117,20 +117,7 @@ node test/basic-dom-test.js
 test/fixture.html
 ```
 
-## 发布到 GitHub
 
-如果你要把这个项目发布到自己的 GitHub 仓库，可以在项目目录中执行：
-
-```bash
-git init
-git add .
-git commit -m "Initial release"
-git branch -M main
-git remote add origin https://github.com/<your-name>/chatgpt-voyager-extension.git
-git push -u origin main
-```
-
-把命令里的 `<your-name>` 换成你的 GitHub 用户名。如果仓库已经存在，只需要确认 `origin` 指向正确仓库后再推送。
 
 ## 说明
 
