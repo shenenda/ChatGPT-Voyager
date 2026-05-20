@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Voyager",
-  "version": "0.1.0",
-  "description": "Adds a Gemini Voyager-style conversation anchor rail and quote-to-ask flow to ChatGPT.",
+  "version": "0.2.0",
+  "description": "Adds conversation anchors, manual quote-to-ask, and send-time scroll locking to ChatGPT.",
   "content_scripts": [
     {
       "matches": [

@@ -211,6 +211,8 @@ body.appendChild(textarea);
 
 const documentListeners = {};
 let currentSelection = { isCollapsed: true, rangeCount: 0 };
+const intervals = [];
+let lastScrollTo = null;
 
 const document = {
   body,
@@ -260,9 +262,18 @@ const context = {
       return timers.length;
     },
     clearTimeout: () => {},
-    setInterval: () => 1,
-    clearInterval: () => {},
-    scrollTo: () => {},
+    setInterval: (fn) => {
+      intervals.push(fn);
+      return intervals.length;
+    },
+    clearInterval: (id) => {
+      intervals[id - 1] = null;
+    },
+    scrollTo: (x, y) => {
+      lastScrollTo = { x, y };
+      context.window.scrollX = x;
+      context.window.scrollY = y;
+    },
     scrollY: 0,
     scrollX: 0,
     innerWidth: 1200,
@@ -354,6 +365,21 @@ if (!textarea.value.includes("请基于上面引用内容回答：")) {
 
 if (!quoteAction.className.includes("cgv-hidden")) {
   throw new Error("Expected quote action to hide after inserting the quote");
+}
+
+const intervalCountBeforeSend = intervals.length;
+context.window.scrollY = 320;
+documentListeners.submit({ type: "submit", target: textarea });
+
+if (intervals.length !== intervalCountBeforeSend + 1) {
+  throw new Error("Expected every prompt submit to start scroll lock");
+}
+
+context.window.scrollY = 900;
+intervals[intervals.length - 1]();
+
+if (!lastScrollTo || lastScrollTo.y !== 320) {
+  throw new Error("Expected scroll lock to restore the scroll position captured before sending");
 }
 
 console.log("basic DOM test passed");

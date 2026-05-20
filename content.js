@@ -13,7 +13,7 @@
     quoteActionId: "cgv-quote-action",
     maxPreviewLength: 120,
     minAnchorGapPx: 24,
-    scrollLockMs: 5200,
+    scrollLockMs: 120000,
     scrollLockTickMs: 80,
     userScrollReleaseMs: 450,
     rescanDelayMs: 120,
@@ -25,10 +25,10 @@
   const state = {
     anchors: [],
     activeAnchorId: "",
-    contextMode: false,
     pendingQuoteText: "",
     routeKey: location.href,
     lastProgrammaticScrollAt: 0,
+    lastUserScrollIntentAt: 0,
     pendingRescan: 0,
     scrollLock: {
       active: false,
@@ -169,7 +169,6 @@
       if (state.routeKey !== location.href) {
         state.routeKey = location.href;
         state.activeAnchorId = "";
-        state.contextMode = false;
         state.pendingQuoteText = "";
         hideQuoteAction();
         stopScrollLock();
@@ -369,7 +368,6 @@
       return;
     }
 
-    state.contextMode = true;
     state.activeAnchorId = anchor.id;
     updateActiveDot();
     state.lastProgrammaticScrollAt = Date.now();
@@ -526,7 +524,6 @@
     }
 
     if (insertQuotePrompt(text)) {
-      state.contextMode = true;
       lastSelectionText = "";
       clearSelection();
       hideQuoteAction();
@@ -640,7 +637,9 @@
   }
 
   function handlePotentialSubmit() {
-    maybeStartScrollLock();
+    if (findPromptEditor()) {
+      maybeStartScrollLock();
+    }
   }
 
   function handlePotentialSendClick(event) {
@@ -673,11 +672,6 @@
   }
 
   function maybeStartScrollLock() {
-    if (!state.contextMode) {
-      return;
-    }
-
-    state.contextMode = false;
     startScrollLock(getScrollTop());
   }
 
@@ -686,6 +680,7 @@
     state.scrollLock.active = true;
     state.scrollLock.top = top;
     state.scrollLock.startedAt = Date.now();
+    state.lastProgrammaticScrollAt = Date.now();
     state.scrollLock.timer = window.setInterval(() => {
       if (!state.scrollLock.active || Date.now() - state.scrollLock.startedAt > CONFIG.scrollLockMs) {
         stopScrollLock();
@@ -712,13 +707,17 @@
       return;
     }
 
-    if (Date.now() - state.lastProgrammaticScrollAt > CONFIG.userScrollReleaseMs) {
+    if (
+      Date.now() - state.lastUserScrollIntentAt <= CONFIG.userScrollReleaseMs &&
+      Date.now() - state.lastProgrammaticScrollAt > CONFIG.userScrollReleaseMs
+    ) {
       stopScrollLock();
     }
   }
 
   function releaseScrollLockOnInput() {
-    if (state.scrollLock.active && Date.now() - state.lastProgrammaticScrollAt > CONFIG.userScrollReleaseMs) {
+    state.lastUserScrollIntentAt = Date.now();
+    if (state.scrollLock.active) {
       stopScrollLock();
     }
   }
@@ -726,6 +725,7 @@
   function releaseScrollLockOnNavigationKey(event) {
     const keys = ["PageDown", "PageUp", "Home", "End", "ArrowUp", "ArrowDown", " "];
     if (state.scrollLock.active && keys.includes(event.key)) {
+      state.lastUserScrollIntentAt = Date.now();
       stopScrollLock();
     }
   }
