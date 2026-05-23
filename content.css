@@ -5,9 +5,6 @@
   --cgv-tooltip-bg: rgba(255, 255, 255, 0.96);
   --cgv-tooltip-text: #111827;
   --cgv-tooltip-border: rgba(17, 24, 39, 0.12);
-  --cgv-action-bg: #111827;
-  --cgv-action-text: #ffffff;
-  --cgv-action-border: rgba(255, 255, 255, 0.16);
   --cgv-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
 }
 
@@ -20,9 +17,6 @@ body.dark,
   --cgv-tooltip-bg: rgba(26, 28, 33, 0.96);
   --cgv-tooltip-text: #f3f4f6;
   --cgv-tooltip-border: rgba(255, 255, 255, 0.14);
-  --cgv-action-bg: #f3f4f6;
-  --cgv-action-text: #111827;
-  --cgv-action-border: rgba(17, 24, 39, 0.14);
   --cgv-shadow: 0 12px 32px rgba(0, 0, 0, 0.34);
 }
 
@@ -93,29 +87,6 @@ body.dark,
   font: 13px/1.42 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   pointer-events: none;
   word-break: break-word;
-}
-
-.cgv-quote-action {
-  position: fixed;
-  z-index: 2147483002;
-}
-
-.cgv-quote-button {
-  border: 1px solid var(--cgv-action-border);
-  border-radius: 8px;
-  background: var(--cgv-action-bg);
-  color: var(--cgv-action-text);
-  box-shadow: var(--cgv-shadow);
-  cursor: pointer;
-  font: 600 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  padding: 9px 12px;
-  white-space: nowrap;
-}
-
-.cgv-quote-button:hover,
-.cgv-quote-button:focus-visible {
-  filter: brightness(1.08);
-  outline: none;
 }
 
 .cgv-hidden {

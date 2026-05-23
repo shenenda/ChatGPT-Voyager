@@ -10,42 +10,23 @@
     anchorAttr: "data-cgv-anchor-id",
     railId: "cgv-anchor-rail",
     tooltipId: "cgv-anchor-tooltip",
-    quoteActionId: "cgv-quote-action",
     maxPreviewLength: 120,
     minAnchorGapPx: 24,
-    scrollLockMs: 120000,
-    scrollLockTickMs: 80,
-    userScrollReleaseMs: 450,
-    rescanDelayMs: 120,
-    selectionMinLength: 2,
-    selectionMaxLength: 2400,
-    selectionActionOffsetPx: 10
+    rescanDelayMs: 120
   };
 
   const state = {
     anchors: [],
     activeAnchorId: "",
-    pendingQuoteText: "",
     routeKey: location.href,
-    lastProgrammaticScrollAt: 0,
-    lastUserScrollIntentAt: 0,
-    pendingRescan: 0,
-    scrollLock: {
-      active: false,
-      top: 0,
-      startedAt: 0,
-      timer: 0
-    }
+    pendingRescan: 0
   };
 
   let rail;
   let track;
   let tooltip;
-  let quoteAction;
-  let quoteButton;
   let mutationObserver;
   let intersectionObserver;
-  let lastSelectionText = "";
 
   function init() {
     ensureUi();
@@ -78,26 +59,6 @@
       tooltip.className = "cgv-anchor-tooltip cgv-hidden";
       document.documentElement.appendChild(tooltip);
     }
-
-    quoteAction = document.getElementById(CONFIG.quoteActionId);
-    if (!quoteAction) {
-      quoteAction = document.createElement("div");
-      quoteAction.id = CONFIG.quoteActionId;
-      quoteAction.className = "cgv-quote-action cgv-hidden";
-
-      quoteButton = document.createElement("button");
-      quoteButton.type = "button";
-      quoteButton.className = "cgv-quote-button";
-      quoteButton.textContent = "引用此内容进行对话";
-      quoteButton.setAttribute("aria-label", "引用此内容进行对话");
-      quoteButton.addEventListener("mousedown", (event) => event.preventDefault());
-      quoteButton.addEventListener("click", handleQuoteActionClick);
-
-      quoteAction.appendChild(quoteButton);
-      document.documentElement.appendChild(quoteAction);
-    } else {
-      quoteButton = quoteAction.querySelector(".cgv-quote-button");
-    }
   }
 
   function observeDom() {
@@ -129,39 +90,8 @@
   }
 
   function installEventHandlers() {
-    document.addEventListener("selectionchange", handleSelectionChange);
-    document.addEventListener("pointerdown", handlePotentialQuoteActionDismiss, true);
-    document.addEventListener("pointerup", handleSelectionCommit, true);
-    document.addEventListener("keyup", handleSelectionCommit, true);
-    document.addEventListener("submit", handlePotentialSubmit, true);
-    document.addEventListener("click", handlePotentialSendClick, true);
-    document.addEventListener("keydown", handlePotentialSendKeydown, true);
     window.setInterval(handleRouteMaybeChanged, 1000);
-
-    window.addEventListener("scroll", handleWindowScroll, {
-      passive: true,
-      capture: true
-    });
-    window.addEventListener("wheel", releaseScrollLockOnInput, {
-      passive: true,
-      capture: true
-    });
-    window.addEventListener("touchmove", releaseScrollLockOnInput, {
-      passive: true,
-      capture: true
-    });
-    window.addEventListener("keydown", releaseScrollLockOnNavigationKey, {
-      passive: true,
-      capture: true
-    });
-    window.addEventListener(
-      "resize",
-      () => {
-        renderAnchors();
-        hideQuoteAction();
-      },
-      { passive: true }
-    );
+    window.addEventListener("resize", renderAnchors, { passive: true });
   }
 
   function handleRouteMaybeChanged() {
@@ -169,9 +99,7 @@
       if (state.routeKey !== location.href) {
         state.routeKey = location.href;
         state.activeAnchorId = "";
-        state.pendingQuoteText = "";
-        hideQuoteAction();
-        stopScrollLock();
+        hideTooltip();
         scheduleRescan(0);
       }
     }, 0);
@@ -370,7 +298,6 @@
 
     state.activeAnchorId = anchor.id;
     updateActiveDot();
-    state.lastProgrammaticScrollAt = Date.now();
     anchor.element.scrollIntoView({
       behavior: "smooth",
       block: "start",
@@ -405,331 +332,6 @@
     }
   }
 
-  function handleSelectionChange() {
-    const text = getSelectedText();
-    if (text) {
-      lastSelectionText = text;
-    }
-  }
-
-  function handleSelectionCommit(event) {
-    if (quoteAction?.contains?.(event.target)) {
-      return;
-    }
-
-    if (
-      event.type === "keyup" &&
-      !["Enter", " ", "Spacebar"].includes(event.key || "") &&
-      !event.shiftKey
-    ) {
-      return;
-    }
-
-    window.setTimeout(() => {
-      const text = getSelectedText() || lastSelectionText;
-      if (!text || isSelectionInsideInput()) {
-        return;
-      }
-
-      showQuoteAction(text);
-    }, 30);
-  }
-
-  function getSelectedText() {
-    const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      return "";
-    }
-
-    const text = normalizeText(selection.toString());
-    if (text.length < CONFIG.selectionMinLength) {
-      return "";
-    }
-
-    return text.slice(0, CONFIG.selectionMaxLength);
-  }
-
-  function isSelectionInsideInput() {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      return false;
-    }
-
-    const node = selection.anchorNode;
-    const element = node && node.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
-    return Boolean(element?.closest('textarea, input, [contenteditable="true"], [role="textbox"]'));
-  }
-
-  function showQuoteAction(selectedText) {
-    ensureUi();
-    if (!quoteAction) {
-      return;
-    }
-
-    state.pendingQuoteText = selectedText;
-    lastSelectionText = selectedText;
-
-    const selectionRect = getSelectionRect();
-    const fallbackRect = {
-      top: window.innerHeight / 2,
-      right: window.innerWidth / 2,
-      bottom: window.innerHeight / 2,
-      left: window.innerWidth / 2,
-      width: 0,
-      height: 0
-    };
-    const rect = selectionRect || fallbackRect;
-
-    quoteAction.classList.remove("cgv-hidden");
-    const actionRect = quoteAction.getBoundingClientRect();
-    const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
-    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-    const top = clamp(
-      rect.bottom + CONFIG.selectionActionOffsetPx,
-      8,
-      Math.max(8, viewportHeight - actionRect.height - 8)
-    );
-    const left = clamp(
-      rect.left + rect.width / 2 - actionRect.width / 2,
-      8,
-      Math.max(8, viewportWidth - actionRect.width - 8)
-    );
-
-    quoteAction.style.top = `${top}px`;
-    quoteAction.style.left = `${left}px`;
-  }
-
-  function getSelectionRect() {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      return null;
-    }
-
-    const range = selection.getRangeAt(0);
-    const rect = range.getBoundingClientRect();
-    if (rect && (rect.width || rect.height)) {
-      return rect;
-    }
-
-    const rects = range.getClientRects ? [...range.getClientRects()] : [];
-    return rects.find((item) => item.width || item.height) || null;
-  }
-
-  function handleQuoteActionClick(event) {
-    event.preventDefault();
-    const text = state.pendingQuoteText || getSelectedText() || lastSelectionText;
-    if (!text) {
-      hideQuoteAction();
-      return;
-    }
-
-    if (insertQuotePrompt(text)) {
-      lastSelectionText = "";
-      clearSelection();
-      hideQuoteAction();
-    }
-  }
-
-  function handlePotentialQuoteActionDismiss(event) {
-    if (quoteAction?.contains?.(event.target)) {
-      return;
-    }
-
-    hideQuoteAction();
-  }
-
-  function hideQuoteAction() {
-    state.pendingQuoteText = "";
-    if (quoteAction) {
-      quoteAction.classList.add("cgv-hidden");
-    }
-  }
-
-  function clearSelection() {
-    const selection = window.getSelection();
-    if (selection && !selection.isCollapsed) {
-      selection.removeAllRanges();
-    }
-  }
-
-  function insertQuotePrompt(selectedText) {
-    const editor = findPromptEditor();
-    if (!editor) {
-      return false;
-    }
-
-    const quote = selectedText
-      .split(/\r?\n/)
-      .map((line) => `> ${line}`)
-      .join("\n");
-    const insertion = `${quote}\n\n请基于上面引用内容回答：`;
-    const existing = getEditorText(editor).trim();
-    const nextValue = existing ? `${existing}\n\n${insertion}` : insertion;
-
-    setEditorText(editor, nextValue);
-    focusEditor(editor);
-    return true;
-  }
-
-  function findPromptEditor() {
-    const selectors = [
-      "#prompt-textarea",
-      'textarea[data-id="root"]',
-      'textarea[placeholder*="Message"]',
-      'textarea[placeholder*="Ask"]',
-      'textarea',
-      '[contenteditable="true"][role="textbox"]',
-      '[contenteditable="true"]'
-    ];
-
-    for (const selector of selectors) {
-      const elements = [...document.querySelectorAll(selector)].filter(isVisibleElement);
-      const editor = elements.find((element) => !element.closest(`[id="${CONFIG.railId}"]`));
-      if (editor) {
-        return editor;
-      }
-    }
-
-    return null;
-  }
-
-  function getEditorText(editor) {
-    if ("value" in editor) {
-      return editor.value || "";
-    }
-    return editor.innerText || editor.textContent || "";
-  }
-
-  function setEditorText(editor, value) {
-    if ("value" in editor) {
-      const nativeSetter = Object.getOwnPropertyDescriptor(
-        Object.getPrototypeOf(editor),
-        "value"
-      )?.set;
-      if (nativeSetter) {
-        nativeSetter.call(editor, value);
-      } else {
-        editor.value = value;
-      }
-      editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
-      return;
-    }
-
-    editor.textContent = value;
-    editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
-  }
-
-  function focusEditor(editor) {
-    state.lastProgrammaticScrollAt = Date.now();
-    editor.focus({ preventScroll: true });
-
-    if (document.createRange && window.getSelection && !("value" in editor)) {
-      const range = document.createRange();
-      range.selectNodeContents(editor);
-      range.collapse(false);
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
-    } else if ("selectionStart" in editor) {
-      const length = editor.value.length;
-      editor.setSelectionRange(length, length);
-    }
-  }
-
-  function handlePotentialSubmit() {
-    if (findPromptEditor()) {
-      maybeStartScrollLock();
-    }
-  }
-
-  function handlePotentialSendClick(event) {
-    const button = event.target?.closest?.("button");
-    if (!button) {
-      return;
-    }
-
-    const label = `${button.getAttribute("aria-label") || ""} ${button.textContent || ""}`;
-    const testId = button.getAttribute("data-testid") || "";
-    if (/send|submit|发送/i.test(label) || /send/i.test(testId)) {
-      maybeStartScrollLock();
-    }
-  }
-
-  function handleWindowScroll() {
-    releaseScrollLockOnUserScroll();
-    hideQuoteAction();
-  }
-
-  function handlePotentialSendKeydown(event) {
-    if (event.key !== "Enter" || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) {
-      return;
-    }
-
-    const target = event.target;
-    if (target?.closest?.('textarea, [contenteditable="true"], [role="textbox"]')) {
-      maybeStartScrollLock();
-    }
-  }
-
-  function maybeStartScrollLock() {
-    startScrollLock(getScrollTop());
-  }
-
-  function startScrollLock(top) {
-    stopScrollLock();
-    state.scrollLock.active = true;
-    state.scrollLock.top = top;
-    state.scrollLock.startedAt = Date.now();
-    state.lastProgrammaticScrollAt = Date.now();
-    state.scrollLock.timer = window.setInterval(() => {
-      if (!state.scrollLock.active || Date.now() - state.scrollLock.startedAt > CONFIG.scrollLockMs) {
-        stopScrollLock();
-        return;
-      }
-
-      if (Math.abs(getScrollTop() - state.scrollLock.top) > 3) {
-        state.lastProgrammaticScrollAt = Date.now();
-        scrollToTop(state.scrollLock.top);
-      }
-    }, CONFIG.scrollLockTickMs);
-  }
-
-  function stopScrollLock() {
-    if (state.scrollLock.timer) {
-      window.clearInterval(state.scrollLock.timer);
-    }
-    state.scrollLock.active = false;
-    state.scrollLock.timer = 0;
-  }
-
-  function releaseScrollLockOnUserScroll() {
-    if (!state.scrollLock.active) {
-      return;
-    }
-
-    if (
-      Date.now() - state.lastUserScrollIntentAt <= CONFIG.userScrollReleaseMs &&
-      Date.now() - state.lastProgrammaticScrollAt > CONFIG.userScrollReleaseMs
-    ) {
-      stopScrollLock();
-    }
-  }
-
-  function releaseScrollLockOnInput() {
-    state.lastUserScrollIntentAt = Date.now();
-    if (state.scrollLock.active) {
-      stopScrollLock();
-    }
-  }
-
-  function releaseScrollLockOnNavigationKey(event) {
-    const keys = ["PageDown", "PageUp", "Home", "End", "ArrowUp", "ArrowDown", " "];
-    if (state.scrollLock.active && keys.includes(event.key)) {
-      state.lastUserScrollIntentAt = Date.now();
-      stopScrollLock();
-    }
-  }
-
   function getScrollTop() {
     return window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
   }
@@ -742,10 +344,6 @@
       document.documentElement.offsetHeight || 0,
       window.innerHeight
     );
-  }
-
-  function scrollToTop(top) {
-    window.scrollTo(window.scrollX, top);
   }
 
   function normalizeText(text) {

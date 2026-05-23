@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ChatGPT Voyager",
-  "version": "0.2.0",
-  "description": "Adds conversation anchors, manual quote-to-ask, and send-time scroll locking to ChatGPT.",
+  "version": "0.3.0",
+  "description": "Adds a right-side conversation anchor rail to ChatGPT.",
   "content_scripts": [
     {
       "matches": [

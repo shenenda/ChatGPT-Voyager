@@ -18,7 +18,6 @@ class Element {
     this.textContent = "";
     this.innerText = "";
     this.id = "";
-    this.value = "";
     this.nodeType = 1;
   }
 
@@ -57,39 +56,14 @@ class Element {
     this.eventListeners[type] = handler;
   }
 
-  dispatchEvent(event) {
-    this.lastEvent = event;
-    return true;
-  }
-
-  focus() {
-    this.focused = true;
-  }
-
-  setSelectionRange(start, end) {
-    this.selectionStart = start;
-    this.selectionEnd = end;
-  }
-
   scrollIntoView(options) {
     this.scrolledWith = options;
-  }
-
-  contains(target) {
-    let node = target;
-    while (node) {
-      if (node === this) {
-        return true;
-      }
-      node = node.parentElement;
-    }
-    return false;
   }
 
   closest(selector) {
     let node = this;
     while (node) {
-      if (matches(node, selector)) {
+      if (matchesAny(node, selector)) {
         return node;
       }
       node = node.parentElement;
@@ -102,10 +76,9 @@ class Element {
   }
 
   querySelectorAll(selector) {
-    const selectors = selector.split(",").map((item) => item.trim());
     const result = [];
     walk(this, (node) => {
-      if (node !== this && selectors.some((item) => matches(node, item))) {
+      if (node !== this && matchesAny(node, selector)) {
         result.push(node);
       }
     });
@@ -143,6 +116,10 @@ function walk(node, callback) {
   node.children.forEach((child) => walk(child, callback));
 }
 
+function matchesAny(node, selector) {
+  return selector.split(",").some((item) => matches(node, item.trim()));
+}
+
 function matches(node, selector) {
   if (selector.startsWith("#")) {
     return node.id === selector.slice(1);
@@ -150,32 +127,17 @@ function matches(node, selector) {
   if (selector === "article") {
     return node.tagName === "ARTICLE";
   }
-  if (selector === "textarea") {
-    return node.tagName === "TEXTAREA";
-  }
   if (selector === ".cgv-anchor-track") {
     return node.className.split(/\s+/).includes("cgv-anchor-track");
   }
   if (selector === ".cgv-anchor-dot") {
     return node.className.split(/\s+/).includes("cgv-anchor-dot");
   }
-  if (selector === ".cgv-quote-button") {
-    return node.className.split(/\s+/).includes("cgv-quote-button");
-  }
   if (selector === '[data-message-author-role="user"]') {
     return node.getAttribute("data-message-author-role") === "user";
   }
   if (selector === "[data-testid]" || selector === "[data-message-id]") {
     return Boolean(node.getAttribute(selector.slice(1, -1)));
-  }
-  if (selector === '[contenteditable="true"]' || selector === '[contenteditable="true"][role="textbox"]') {
-    return node.getAttribute("contenteditable") === "true";
-  }
-  if (selector === 'textarea[data-id="root"]') {
-    return node.tagName === "TEXTAREA" && node.getAttribute("data-id") === "root";
-  }
-  if (selector.startsWith("textarea[")) {
-    return node.tagName === "TEXTAREA";
   }
   if (selector === `[id="cgv-anchor-rail"]`) {
     return node.id === "cgv-anchor-rail";
@@ -197,22 +159,12 @@ function addMessage(role, text) {
   article.innerText = text;
   article.appendChild(message);
   body.appendChild(article);
+  return article;
 }
 
-addMessage("user", "First prompt");
+const firstPrompt = addMessage("user", "First prompt");
 addMessage("assistant", "First answer");
 addMessage("user", "Second prompt");
-const selectableMessage = body.children[1].children[0];
-
-const textarea = new Element("textarea");
-textarea.id = "prompt-textarea";
-textarea.setAttribute("id", "prompt-textarea");
-body.appendChild(textarea);
-
-const documentListeners = {};
-let currentSelection = { isCollapsed: true, rangeCount: 0 };
-const intervals = [];
-let lastScrollTo = null;
 
 const document = {
   body,
@@ -220,27 +172,13 @@ const document = {
   querySelectorAll: (selector) => documentElement.querySelectorAll(selector),
   querySelector: (selector) => documentElement.querySelector(selector),
   getElementById: (id) => documentElement.querySelectorAll(`#${id}`)[0] || null,
-  createElement: (tagName) => new Element(tagName),
-  addEventListener: (type, handler) => {
-    documentListeners[type] = handler;
-  },
-  createRange: () => ({
-    selectNodeContents: () => {},
-    collapse: () => {}
-  })
+  createElement: (tagName) => new Element(tagName)
 };
 
 const timers = [];
 const context = {
   console,
   Element,
-  Node: { ELEMENT_NODE: 1 },
-  InputEvent: class InputEvent {
-    constructor(type, init) {
-      this.type = type;
-      Object.assign(this, init);
-    }
-  },
   MutationObserver: class MutationObserver {
     observe() {}
   },
@@ -262,24 +200,11 @@ const context = {
       return timers.length;
     },
     clearTimeout: () => {},
-    setInterval: (fn) => {
-      intervals.push(fn);
-      return intervals.length;
-    },
-    clearInterval: (id) => {
-      intervals[id - 1] = null;
-    },
-    scrollTo: (x, y) => {
-      lastScrollTo = { x, y };
-      context.window.scrollX = x;
-      context.window.scrollY = y;
-    },
+    setInterval: () => 1,
     scrollY: 0,
     scrollX: 0,
-    innerWidth: 1200,
     innerHeight: 900,
-    getComputedStyle: () => ({ visibility: "visible", display: "block" }),
-    getSelection: () => currentSelection
+    getComputedStyle: () => ({ visibility: "visible", display: "block" })
   }
 };
 
@@ -288,12 +213,9 @@ context.window.document = document;
 context.window.history = context.history;
 context.window.location = context.location;
 context.window.Element = Element;
-context.window.Node = context.Node;
-context.window.InputEvent = context.InputEvent;
 context.window.MutationObserver = context.MutationObserver;
 context.window.IntersectionObserver = context.IntersectionObserver;
 context.window.getComputedStyle = context.window.getComputedStyle;
-context.window.getSelection = context.window.getSelection;
 context.window.Math = Math;
 context.window.Date = Date;
 context.globalThis = context.window;
@@ -314,72 +236,13 @@ if (!document.getElementById("cgv-anchor-rail")) {
   throw new Error("Expected rail to be created");
 }
 
-currentSelection = {
-  isCollapsed: false,
-  rangeCount: 1,
-  anchorNode: selectableMessage,
-  toString: () => "selectable quote",
-  getRangeAt: () => ({
-    getBoundingClientRect: () => ({
-      width: 120,
-      height: 24,
-      top: 120,
-      right: 260,
-      bottom: 144,
-      left: 140
-    }),
-    getClientRects: () => []
-  }),
-  removeAllRanges() {
-    this.isCollapsed = true;
-    this.rangeCount = 0;
-  }
-};
-
-documentListeners.selectionchange({ type: "selectionchange" });
-documentListeners.pointerup({ type: "pointerup", target: selectableMessage });
-
-while (timers.length) {
-  timers.shift()();
+if (document.getElementById("cgv-quote-action")) {
+  throw new Error("Expected quote action UI to be removed");
 }
 
-if (textarea.value) {
-  throw new Error("Expected selection to wait for manual quote action before filling the editor");
-}
-
-const quoteAction = document.getElementById("cgv-quote-action");
-const quoteButton = quoteAction?.querySelector(".cgv-quote-button");
-if (!quoteAction || !quoteButton || quoteAction.className.includes("cgv-hidden")) {
-  throw new Error("Expected quote action button to be shown after selecting text");
-}
-
-quoteButton.eventListeners.click({ preventDefault() {} });
-
-if (!textarea.value.includes("> selectable quote")) {
-  throw new Error("Expected quote action click to insert selected text into the editor");
-}
-
-if (!textarea.value.includes("请基于上面引用内容回答：")) {
-  throw new Error("Expected quote action click to insert the quote prompt");
-}
-
-if (!quoteAction.className.includes("cgv-hidden")) {
-  throw new Error("Expected quote action to hide after inserting the quote");
-}
-
-const intervalCountBeforeSend = intervals.length;
-context.window.scrollY = 320;
-documentListeners.submit({ type: "submit", target: textarea });
-
-if (intervals.length !== intervalCountBeforeSend + 1) {
-  throw new Error("Expected every prompt submit to start scroll lock");
-}
-
-context.window.scrollY = 900;
-intervals[intervals.length - 1]();
-
-if (!lastScrollTo || lastScrollTo.y !== 320) {
-  throw new Error("Expected scroll lock to restore the scroll position captured before sending");
+dots[0].eventListeners.click();
+if (!firstPrompt.scrolledWith || firstPrompt.scrolledWith.block !== "start") {
+  throw new Error("Expected anchor dot click to scroll to the prompt");
 }
 
 console.log("basic DOM test passed");

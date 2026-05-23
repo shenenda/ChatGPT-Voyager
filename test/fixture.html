@@ -25,15 +25,6 @@
         background: #f3f4f6;
       }
 
-      #prompt-textarea {
-        position: fixed;
-        left: 50%;
-        bottom: 24px;
-        width: min(680px, calc(100vw - 48px));
-        min-height: 88px;
-        transform: translateX(-50%);
-        padding: 16px;
-      }
     </style>
   </head>
   <body>
@@ -42,18 +33,17 @@
       <div data-message-author-role="user">First user prompt about model design.</div>
     </article>
     <article>
-      <div data-message-author-role="assistant">Assistant answer with selectable text for quote insertion.</div>
+      <div data-message-author-role="assistant">Assistant answer used to verify anchor placement.</div>
     </article>
     <article>
       <div data-message-author-role="user">Second user prompt with a longer body that should be visible in the tooltip preview and truncated if needed.</div>
     </article>
     <article>
-      <div data-message-author-role="assistant">Another answer. Select this sentence to test quote-to-ask.</div>
+      <div data-message-author-role="assistant">Another answer between user prompts.</div>
     </article>
     <article>
       <div data-message-author-role="user">Third user prompt.</div>
     </article>
-    <textarea id="prompt-textarea" placeholder="Message ChatGPT"></textarea>
     <script src="../content.js"></script>
   </body>
 </html>
